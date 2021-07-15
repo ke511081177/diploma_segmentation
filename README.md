@@ -28,3 +28,5 @@
 ## jiabaDictionary
 
 - 用於補充訓練斷詞的字庫
+
+## Data連結[https://drive.google.com/drive/folders/1uUuRkW2yG3m6i-n_UlYMy8iv1C1VL_0x?usp=sharing]
