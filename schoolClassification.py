@@ -2,7 +2,7 @@
 
 
 import os 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="subtle-fulcrum-319206-415ab8f59c71.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="key"  ## GCP 金鑰
 from google.cloud import vision
 client = vision.ImageAnnotatorClient()
 import cv2
