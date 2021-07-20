@@ -10,11 +10,11 @@ from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Flatten
 
-smooth = 1. # 用於防止分母爲0.
+smooth = 1. 
 
 def dice_coef(y_true, y_pred):
     flatten_layer = Flatten() 
-    y_true_f = flatten_layer(y_true) # 將 y_true 拉伸爲一維.
+    y_true_f = flatten_layer(y_true) 
     y_pred_f = flatten_layer(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f * y_true_f) + K.sum(y_pred_f * y_pred_f) + smooth)
