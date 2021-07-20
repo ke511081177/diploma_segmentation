@@ -4,7 +4,7 @@ import numpy as np
 import os
 import jieba.analyse
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="XXXXX.json"   # GCP金鑰
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="subtle-fulcrum-319206-415ab8f59c71.json"
 from google.cloud import vision
 client = vision.ImageAnnotatorClient()
 import jieba
@@ -39,6 +39,7 @@ department = ['系','所','科']
 degree = ['學士','碩士','博士']
 
 unsortedCount = 0
+
 smooth = 1. # 用於防止分母爲0.
 
 def dice_coef(y_true, y_pred):
@@ -51,22 +52,13 @@ def dice_coef(y_true, y_pred):
 def dice_coef_loss(y_true, y_pred):
     return 1. - dice_coef(y_true, y_pred)
 
-def labelVisualize(num_class,color_dict,img):
-    img = img[:,:,0] if len(img.shape) == 3 else img
-    img_out = np.zeros(img.shape + (3,))
-    for i in range(num_class):
-        img_out[img == i,:] = color_dict[i]
-    return img_out / 255
-
-
-
 
 
 
 class diplomaClassifier():
     def __init__(self):
         #self.cutModel = keras.models.load_model('unet_diploma_4.hdf5')
-        self.stampModel = keras.models.load_model('unet_stamp_400_5.hdf5',custom_objects={'dice_coef_loss': dice_coef_loss})
+        self.stampModel = keras.models.load_model('unet_stamp_rgb_300_15_binary.hdf5',custom_objects={'dice_coef_loss': dice_coef_loss})
         #self.stampModel = keras.models.load_model('unet_stamp_4.hdf5')
         self.text =[]
 
@@ -241,24 +233,19 @@ class diplomaClassifier():
     
     def stampCut(self):
         
-        rimg = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+        
+        
+        print(self.img.shape,'~~')
+        self.img = cv2.cvtColor(self.img,cv2.COLOR_BGR2RGB)
+        rimg = cv2.resize(self.img, (256, 256))
 
-        rimg = cv2.resize(rimg, (256, 256))
 
-        #binary = cv2.threshold(rimg, 0, 255, cv2.THRESH_OTSU)[1]
 
-        binary = np.reshape(rimg,rimg.shape+(1,))
-
-        binary = np.reshape(binary,(1,)+binary.shape)
+        binary = np.reshape(rimg,(1,)+rimg.shape)
         
         mask = self.stampModel.predict(binary)
-        mask = np.reshape(mask,(256,256,1))
-        # print(mask.shape)
-        # io.imsave(os.path.join('./aa.png'),mask)
-        ret, mask = cv2.threshold(mask, 0, 255, cv2.THRESH_BINARY)  
-        # cv2.imshow('aa',mask)
-        # cv2.waitKey()
-        # io.imsave(os.path.join('./aaa.jpg'),mask)
+        
+        
         
         mask = np.stack((mask,)*3, axis=-1)
         
@@ -267,54 +254,17 @@ class diplomaClassifier():
         
         mask = cv2.resize(mask,(self.img.shape[1],self.img.shape[0]))
         
-
-        #h, w, _ = mask.shape  
-  
-        # gray = cv2.cvtColor( mask, cv2.COLOR_BGR2GRAY)  
-        
-        # ret, thresh = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)  
-        
-        # # Find Contour  
-        # thresh = np.uint8(thresh)
-        # _, contours, hierarchy = cv2.findContours( thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)  
-  
- 
-        # c_max = []
-        # max_area = 0
-        # max_cnt = 0
-        # for i in range(len(contours)):
-        #     cnt = contours[i]
-        #     area = cv2.contourArea(cnt)
-        #     # find max countour
-        #     if (area>max_area):
-        #         if(max_area!=0):
-        #             c_min = []
-        #             c_min.append(max_cnt)
-        #             cv2.drawContours( mask, c_min, -1, (0,0,0), cv2.FILLED)
-        #         max_area = area
-        #         max_cnt = cnt
-        #     else:
-        #         c_min = []
-        #         c_min.append(cnt)
-        #         cv2.drawContours( mask, c_min, -1, (0,0,0), cv2.FILLED)
-
-        # c_max.append(max_cnt)
-        # # cv2.imshow('A',mask)
-        
-        # if len(c_max)>1:
-        #     cv2.drawContours( mask, c_max, -1, (255, 255, 255), thickness=-1)  
-        #     # cv2.imshow('B',mask)
-            
         mask = mask[:,:,0]
-        #cv2.waitKey(0)
+    
+  
 
         mask = np.uint8(mask)
-       # cv2.imwrite('output.jpg',mask)
-        #cv2.waitKey(0)
+    
+        cv2.imshow('aa',mask)
         self.img = cv2.add(self.img, np.zeros(np.shape(self.img), dtype=np.uint8), mask=mask)
-        #cv2.imshow('aa',self.img)
-        #cv2.waitKey()
-        #cv2.imwrite('output.jpg',self.img)
+        self.img = cv2.cvtColor(self.img,cv2.COLOR_RGB2BGR)
+        cv2.imwrite('output.jpg',self.img)
+    
 
     def detect_text(self):
 
