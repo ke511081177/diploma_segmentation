@@ -17,6 +17,9 @@
     - 訓練  
 ## loss.py
 - dice loss for model
+
+## func.py
+基礎運算函式
 ## schoolClassification.py
 
 - 各功能測試
