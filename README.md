@@ -16,7 +16,7 @@
   - main.py
     - 訓練  
 
-## main.py
+## schoolClassification.py
 
 - 各功能測試
   - 背景切割
