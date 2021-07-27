@@ -14,12 +14,12 @@ for dir_name in dirs:
     for filename in filenames:
         if filename == "img.png":
             img = cv2.imread(os.path.join(path, dir_name, filename), 0)
-            img = cv2.resize(img, (240, 180))
+            #img = cv2.resize(img, (240, 180))
             cv2.imwrite(os.path.join(img_output, dir_name+".png"), img)
  
         if filename == "label.png":
             img = cv2.imread(os.path.join(path, dir_name, filename), 0)
-            img = cv2.resize(img, (240, 180))
+           # img = cv2.resize(img, (240, 180))
             binary = cv2.threshold(img, 0, 255, cv2.THRESH_OTSU)[1]
             cv2.imwrite(os.path.join(label_output, dir_name+".png"), binary)
  
