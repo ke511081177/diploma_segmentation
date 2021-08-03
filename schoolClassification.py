@@ -8,7 +8,10 @@ import re
 
 from loss import*
 from func import*
+import tensorflow as tf
 
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="subtle-fulcrum-319206-415ab8f59c71.json"
 
@@ -16,99 +19,145 @@ from google.cloud import vision
 
 client = vision.ImageAnnotatorClient()
 
-folderlist = ['unsorted']
-
-folderpath = './classify'
 
 school = ['大學','高中','國中','國小','二專','四技','學校','私立','公立']
 
 
 class diplomaClassifier():
     def __init__(self):
+        
         self.stampModel = keras.models.load_model('unet_stamp_rgb_300_15_binary.hdf5',custom_objects={'dice_coef_loss': dice_coef_loss})
+        self.preModel = keras.models.load_model('diplomaORnot.h5')
         self.text = []
         self.tempschool = ''
+        self.folderlist = ['unsorted']
+        self.folderpath = './classify'
+
+        #load 自建自典
+        jieba.load_userdict('./jiabaDictionary/school.txt')
+        jieba.load_userdict('./jiabaDictionary/department.txt')
+
+
+
+    def preClassify(self):
+        temp = self.img
+        temp = cv2.resize(temp, (300,300))
+        
+        temp = temp.reshape(1,300,300,3)
+
+        temp = self.preModel.predict(temp)
+        
+        if temp[0][1] > 0.7:
+            temp = 1
+        else:
+            temp = 0
+
+        return temp
+
+        
+
 
     def run(self,file):
-        self.text = []
-        self.tempschool = ''
+        try:
+            self.text = []
+            self.tempschool = ''
 
-        path = './image'
-        self.img = cv2.imread('{}/{}'.format(path,file))
+            path = './image'
+            self.img = cv2.imread('{}/{}'.format(path,file))
+            self.tempImg = self.img
+            
+            file = re.sub('[.jpg]', '', file)
+
+            #篩掉非畢業證書
+            temp = self.preClassify()
+
+            if temp  == 0:
+                
+                self.Unqualified('notdiploma',file)
+                # print('not: ',file)
+                # os.makedirs('./{}/notdiploma/{}'.format(self.folderpath,file))
+                # cv2.imwrite('{}/notdiploma/{}/{}'.format(self.folderpath,file,file),self.tempImg)
+                return 
+
+
+            self.scanText(file)
+
+            # 偵測不到文字
+            if len(self.texts) == 0:
+                self.Unqualified(file)
+                return 
+
+            self.texts = self.texts[0].description
+            self.texts = self.texts.replace("\n","").strip()
+            self.texts = self.texts.replace(" ","").strip()
+            if '證書' not in self.texts and '學位' not in self.texts:
+                self.Unqualified('ungraduate',file)
+                return
+            temp = jieba.cut(self.texts)
+
+            for i in temp:
+                self.text.append(i)
+    
+            buffer = []
+
+            for c in school:
+                for i in self.text:
+                    if c in i:
+                        buffer.append(i)
+
+            #有偵測到大學
+            if len(buffer) != 0:
+                for i in buffer:
+                    if len(self.tempschool) < len(i):
+                        self.tempschool = i
+                
+                #查無大學
+                if len(self.tempschool) < 4:
+                    self.Unqualified('unsorted',file)
+                    return
+                
+                self.qualified(file)
+        except:
+
+            print(file)
+            with open('error.txt', 'w',encoding="utf-8") as f:
+                f.writelines(file) 
+                
+
+    def scanText(self,file):
         
-        """Detects text in the file."""
-        self.tempImg = self.img
-        
-        file = re.sub('[.jpg]', '', file)
- 
+
         success, encoded_image = cv2.imencode('.jpg', self.img)
 
         content = encoded_image.tobytes()
         image = vision.Image(content=content)
         response = client.text_detection(image=image)
 
-        texts = response.text_annotations
+        self.texts = response.text_annotations
+
+    def qualified(self,file):
+        print('School: ',self.tempschool)
+
+        if self.tempschool not in self.folderlist:
+            os.makedirs('./{}/{}'.format(self.folderpath, self.tempschool))
+            self.folderlist.append(self.tempschool)
+
+        self.stampCut()
+        os.makedirs('./{}/{}/{}'.format(self.folderpath, self.tempschool, file))
+
+        # 中文路徑要解碼
+        cv2.imencode('.jpg',self.tempImg)[1].tofile('{}/{}/{}/{}.jpg'.format(self.folderpath, self.tempschool, file, file)) 
         
-        text = texts[0].description
-        
-        text = text.replace("\n","").strip()
-        text = text.replace(" ","").strip()
-        #print(text)
+        cv2.imencode('.jpg',self.img)[1].tofile('{}/{}/{}/{}_stamp.jpg'.format(self.folderpath, self.tempschool, file, file))
 
-        jieba.load_userdict('./jiabaDictionary/school.txt')
-        jieba.load_userdict('./jiabaDictionary/department.txt')
+        with open('{}/{}/{}/{}_text.txt'.format(self.folderpath,self.tempschool,file,file), 'w',encoding="utf-8") as f:
+            f.write(self.texts) 
 
-        seg_list = jieba.cut(text)
-       
-        for i in seg_list:
-            self.text.append(i)
+    def Unqualified(self,folder,file):
+        print('school: Not Found')
 
-        buffer = []
-
-        for c in school:
-            for i in self.text:
-                if c in i:
-                    buffer.append(i)
-
-        #print(buffer)
-
-        if len(buffer) != 0:
-            for i in buffer:
-                if len(self.tempschool) < len(i):
-                    self.tempschool = i
-            
-            #查無大學
-            if len(self.tempschool) < 4:
-                print('school: Not Found')
-
-                os.makedirs('./{}/unsorted/{}'.format(folderpath,file))
-
-
-                cv2.imwrite('{}/unsorted/{}/{}.jpg'.format(folderpath,file,file),self.tempImg)
-
-                self.stampCut()
-
-                cv2.imwrite('{}/unsorted/{}/{}_stamp.jpg'.format(folderpath,file,file),self.img)
-
-                with open('{}/unsorted/{}/{}_text.txt'.format(folderpath,file,file), 'w',encoding="utf-8") as f:
-                    f.write(text)
-
-            else:
-                print('School: ',self.tempschool)
-
-                if self.tempschool not in folderlist:
-                    os.makedirs('./{}/{}'.format(folderpath,self.tempschool))
-                    folderlist.append(self.tempschool)
-
-                self.stampCut()
-
-                # 中文路徑要解碼
-                cv2.imencode('.jpg',self.tempImg)[1].tofile('classify/{}/{}.jpg'.format(self.tempschool,file)) 
-                
-                cv2.imencode('.jpg',self.img)[1].tofile('{}/{}/{}_stamp.jpg'.format(folderpath,self.tempschool,file))
-
-                with open('{}/{}/{}_text.txt'.format(folderpath,self.tempschool,file), 'w',encoding="utf-8") as f:
-                    f.write(text) 
+        os.makedirs('./{}/{}/{}'.format(self.folderpath,folder,file))
+        cv2.imwrite('{}/{}/{}/{}.jpg'.format(self.folderpath,folder,file,file),self.tempImg)
 
     def stampCut(self):
         self.img = cv2.cvtColor(self.img,cv2.COLOR_BGR2RGB)
@@ -151,7 +200,9 @@ if __name__ == '__main__':
     filelist = os.listdir(path)
 
     jieba.case_sensitive = True
+    classifiler.img  = cv2.imread('{}/110a.jpg'.format(path))
 
+    #classifiler.run('110a.jpg')
     for file in filelist:
         classifiler.img  = cv2.imread('{}/{}'.format(path,file))
         classifiler.run(file)
