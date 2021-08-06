@@ -30,16 +30,16 @@ class diplomaClassifier():
         self.preModel = keras.models.load_model('diplomaORnot.h5')
         self.text = []
         self.tempschool = ''
-        self.folderlist = ['unsorted']
+        #self.folderlist = ['unsorted']
         self.folderpath = './classify'
-
+        self.folderlist = os.listdir(self.folderpath)
         #load 自建自典
         jieba.load_userdict('./jiabaDictionary/school.txt')
         jieba.load_userdict('./jiabaDictionary/department.txt')
 
 
 
-    def preClassify(self):
+    def checkDiploma(self):
         temp = self.img
         temp = cv2.resize(temp, (300,300))
         
@@ -58,70 +58,72 @@ class diplomaClassifier():
 
 
     def run(self,file):
-        try:
-            self.text = []
-            self.tempschool = ''
+        #try:
+        import time
+        self.text = []
+        self.tempschool = ''
 
-            path = './image'
-            self.img = cv2.imread('{}/{}'.format(path,file))
-            self.tempImg = self.img
+        path = './image'
+        self.img = cv2.imread('{}/{}'.format(path,file))
+        self.tempImg = self.img
+        
+        file = re.sub('[.jpg]', '', file)
+
+        #篩掉非畢業證書
+        temp = self.checkDiploma()
+
+        if temp  == 0:
             
-            file = re.sub('[.jpg]', '', file)
-
-            #篩掉非畢業證書
-            temp = self.preClassify()
-
-            if temp  == 0:
-                
-                self.Unqualified('notdiploma',file)
-                # print('not: ',file)
-                # os.makedirs('./{}/notdiploma/{}'.format(self.folderpath,file))
-                # cv2.imwrite('{}/notdiploma/{}/{}'.format(self.folderpath,file,file),self.tempImg)
-                return 
+            self.Unqualified('notdiploma',file)
+            # print('not: ',file)
+            # os.makedirs('./{}/notdiploma/{}'.format(self.folderpath,file))
+            # cv2.imwrite('{}/notdiploma/{}/{}'.format(self.folderpath,file,file),self.tempImg)
+            
+            return 
 
 
-            self.scanText(file)
+        self.scanText(file)
 
-            # 偵測不到文字
-            if len(self.texts) == 0:
-                self.Unqualified(file)
-                return 
+        # 偵測不到文字
+        if len(self.texts) == 0:
+            self.Unqualified(file)
+            return 
 
-            self.texts = self.texts[0].description
-            self.texts = self.texts.replace("\n","").strip()
-            self.texts = self.texts.replace(" ","").strip()
-            if '證書' not in self.texts and '學位' not in self.texts:
-                self.Unqualified('ungraduate',file)
+        self.texts = self.texts[0].description
+        self.texts = self.texts.replace("\n","").strip()
+        self.texts = self.texts.replace(" ","").strip()
+        if '證書' not in self.texts and '學位' not in self.texts:
+            self.Unqualified('ungraduate',file)
+            return
+        temp = jieba.cut(self.texts)
+
+        for i in temp:
+            self.text.append(i)
+
+        buffer = []
+
+        for c in school:
+            for i in self.text:
+                if c in i:
+                    buffer.append(i)
+
+        #有偵測到大學
+        if len(buffer) != 0:
+            for i in buffer:
+                if len(self.tempschool) < len(i):
+                    self.tempschool = i
+            
+            #查無大學
+            if len(self.tempschool) < 4:
+                self.Unqualified('unsorted',file)
                 return
-            temp = jieba.cut(self.texts)
+            
+            self.qualified(file)
+        # except:
 
-            for i in temp:
-                self.text.append(i)
-    
-            buffer = []
-
-            for c in school:
-                for i in self.text:
-                    if c in i:
-                        buffer.append(i)
-
-            #有偵測到大學
-            if len(buffer) != 0:
-                for i in buffer:
-                    if len(self.tempschool) < len(i):
-                        self.tempschool = i
-                
-                #查無大學
-                if len(self.tempschool) < 4:
-                    self.Unqualified('unsorted',file)
-                    return
-                
-                self.qualified(file)
-        except:
-
-            print(file)
-            with open('error.txt', 'w',encoding="utf-8") as f:
-                f.writelines(file) 
+        #     print(file)
+        #     with open('error.txt', 'w',encoding="utf-8") as f:
+        #         f.writelines(file) 
                 
 
     def scanText(self,file):
@@ -144,7 +146,7 @@ class diplomaClassifier():
 
         self.stampCut()
         os.makedirs('./{}/{}/{}'.format(self.folderpath, self.tempschool, file))
-
+        
         # 中文路徑要解碼
         cv2.imencode('.jpg',self.tempImg)[1].tofile('{}/{}/{}/{}.jpg'.format(self.folderpath, self.tempschool, file, file)) 
         
@@ -185,7 +187,6 @@ class diplomaClassifier():
         squares = find_squares(self.img)
 
         if squares == 0:
-            print(file)
             print('----ERROR------')
             return 0
 
@@ -196,13 +197,19 @@ class diplomaClassifier():
 if __name__ == '__main__':
     classifiler = diplomaClassifier()
 
-    path = './image'
-    filelist = os.listdir(path)
-
     jieba.case_sensitive = True
-    classifiler.img  = cv2.imread('{}/110a.jpg'.format(path))
 
-    #classifiler.run('110a.jpg')
-    for file in filelist:
-        classifiler.img  = cv2.imread('{}/{}'.format(path,file))
-        classifiler.run(file)
+    classifiler.run('0.jpg')
+    classifiler.run('329.jpg')
+    classifiler.run('295.jpg')
+    classifiler.run('110a.jpg')
+    
+
+
+
+    
+
+    # for file in filelist:
+    #     classifiler.img  = cv2.imread('{}/{}'.format(path,file))
+    #     classifiler.run(file)
+
